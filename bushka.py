@@ -8,6 +8,7 @@ TOKEN = "8089566253:AAGJSzNBhjgoEK5ZolkgIqH8a8Q99iPuu44"
 ANON_GROUP_LINK = "https://t.me/+Ql0IZosRRu82YTQy"
 ANON_GROUP_ID = -1002514617765
 FORWARD_GROUP_ID = -1002698558394
+VIDEO_LINK = "https://youtu.be/PQH1W_DRA7E"
 
 # Словарь для хранения соответствия сообщений бота и отправителей
 user_message_map = {}
@@ -45,7 +46,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sent_msg = await context.bot.send_message(
                 chat_id=ANON_GROUP_ID,
                 text=f"✉️ Новое анонимное сообщение:\n\n{update.message.text}",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Открыть", url=ANON_GROUP_LINK)])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("пасматреть", url=VIDEO_LINK)]])
             )
             
             # Сохраняем соответствие между сообщением бота и отправителем
@@ -62,7 +63,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             
             await update.message.forward(FORWARD_GROUP_ID)
-            await update.message.reply_text("✅ Сообщение успешно отправлено админам!")
+            await update.message.reply_text("✅ Сообщение успешно отправлено админам! (есле чота нада то @kmpr0)")
 
         except TelegramError as e:
             logger.error(f"Ошибка Telegram: {e}")
