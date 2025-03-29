@@ -46,7 +46,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sent_msg = await context.bot.send_message(
                 chat_id=ANON_GROUP_ID,
                 text=f"✉️ Новое анонимное сообщение:\n\n{update.message.text}",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("пасматреть", url=VIDEO_LINK)]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔍 пасматряiмо:", url=ANON_GROUP_LINK)]])
             )
             
             # Сохраняем соответствие между сообщением бота и отправителем
