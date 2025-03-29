@@ -1,19 +1,22 @@
 import logging
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, CallbackContext
 from telegram.error import TelegramError
 
 # Настройки бота
-TOKEN = "8089566253:AAGJSzNBhjgoEK5ZolkgIqH8a8Q99iPuu44"  # Замените на токен вашего бота
-ANON_GROUP_LINK = "https://t.me/+Ql0IZosRRu82YTQy"  # Ссылка на группу для анонимных постов
-ANON_GROUP_ID = -1002514617765  # ID анонимной группы (должно начинаться с -100)
-FORWARD_GROUP_ID = -1002698558394  # ID группы для пересылки (тоже с -100)
+TOKEN = "8089566253:AAGJSzNBhjgoEK5ZolkgIqH8a8Q99iPuu44"
+ANON_GROUP_LINK = "https://t.me/+Ql0IZosRRu82YTQy"
+ANON_GROUP_ID = -1002514617765
+FORWARD_GROUP_ID = -1002698558394
+
+# Словарь для хранения соответствия сообщений бота и отправителей
+user_message_map = {}
 
 # Настройка логов
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
-    filename='bot.log'  # Логи сохраняются в файл
+    filename='bot.log'
 )
 logger = logging.getLogger(__name__)
 
@@ -26,44 +29,92 @@ async def debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        # Логируем входящее сообщение
-        logger.info(f"Новое сообщение от {update.message.from_user.id}: {update.message.text or 'Медиа-файл'}")
+    # Обработка сообщений только из личного чата
+    if update.message.chat.type == "private":
+        try:
+            user = update.message.from_user
+            logger.info(f"Новое сообщение от {user.id}: {update.message.text or 'Медиа-файл'}")
 
-        # Проверяем, что бот может отправлять сообщения
-        test_msg = await context.bot.send_message(
-            chat_id=update.message.chat.id,
-            text="🔄 Проверка связи..."
-        )
-        await test_msg.delete()
+            test_msg = await context.bot.send_message(
+                chat_id=update.message.chat.id,
+                text="🔄 Проверка связи..."
+            )
+            await test_msg.delete()
 
-        # Отправка в анонимную группу
-        sent_msg = await context.bot.send_message(
-            chat_id=ANON_GROUP_ID,
-            text=f"✉️ Новое анонимное сообщение:\n\n{update.message.text}",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Открыть", url=ANON_GROUP_LINK)]])
-        )
-        logger.info(f"Сообщение отправлено в анонимную группу. ID: {sent_msg.message_id}")
+            # Отправка в анонимную группу
+            sent_msg = await context.bot.send_message(
+                chat_id=ANON_GROUP_ID,
+                text=f"✉️ Новое анонимное сообщение:\n\n{update.message.text}",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Открыть", url=ANON_GROUP_LINK)])
+            )
+            
+            # Сохраняем соответствие между сообщением бота и отправителем
+            user_message_map[sent_msg.message_id] = user.id
+            logger.info(f"Сообщение {sent_msg.message_id} сохранено для пользователя {user.id}")
 
-        # Пересылка в другую группу
-        forwarded_msg = await update.message.forward(FORWARD_GROUP_ID)
-        logger.info(f"Сообщение переслано. ID: {forwarded_msg.message_id}")
+            # Пересылка в другую группу с информацией об отправителе
+            sender_info = f"@{user.username} (ID: {user.id})" if user.username else f"ID: {user.id}"
+            full_message = f"Отправитель: {sender_info}\n\n{update.message.text}" if update.message.text else f"Отправитель: {sender_info}"
 
-        await update.message.reply_text("✅ Сообщение успешно опубликовано!")
+            await context.bot.send_message(
+                chat_id=FORWARD_GROUP_ID,
+                text=full_message
+            )
+            
+            await update.message.forward(FORWARD_GROUP_ID)
+            await update.message.reply_text("✅ Сообщение успешно опубликовано!")
 
-    except TelegramError as e:
-        logger.error(f"Ошибка Telegram: {e}")
-        await update.message.reply_text(f"❌ Ошибка: {e}")
-    except Exception as e:
-        logger.critical(f"Критическая ошибка: {e}")
-        await update.message.reply_text("⚠️ Произошла непредвиденная ошибка")
+        except TelegramError as e:
+            logger.error(f"Ошибка Telegram: {e}")
+            await update.message.reply_text(f"❌ Ошибка: {e}")
+        except Exception as e:
+            logger.critical(f"Критическая ошибка: {e}")
+            await update.message.reply_text("⚠️ Произошла непредвиденная ошибка")
+
+async def handle_reply(update: Update, context: CallbackContext):
+    # Обработка ответов на сообщения бота в группах
+    if update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id:
+        replied_msg_id = update.message.reply_to_message.message_id
+        
+        # Ищем отправителя оригинального сообщения
+        if replied_msg_id in user_message_map:
+            original_sender_id = user_message_map[replied_msg_id]
+            
+            try:
+                # Отправляем ответ пользователю
+                reply_text = f"🔔 Ответ на ваше сообщение:\n\n{update.message.text}"
+                await context.bot.send_message(
+                    chat_id=original_sender_id,
+                    text=reply_text
+                )
+                
+                # Если это медиа-сообщение, пересылаем его
+                if not update.message.text:
+                    await context.bot.forward_message(
+                        chat_id=original_sender_id,
+                        from_chat_id=update.message.chat.id,
+                        message_id=update.message.message_id
+                    )
+                
+                logger.info(f"Ответ переслан пользователю {original_sender_id}")
+                
+            except TelegramError as e:
+                logger.error(f"Не удалось отправить ответ пользователю {original_sender_id}: {e}")
+                if "bot was blocked by the user" in str(e):
+                    await update.message.reply_text("❌ Не удалось отправить ответ - пользователь заблокировал бота")
 
 if __name__ == "__main__":
     application = ApplicationBuilder().token(TOKEN).build()
     
-    # Добавляем команду для отладки
     application.add_handler(CommandHandler("debug", debug))
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    
+    # Добавляем обработчик для ответов на сообщения бота
+    application.add_handler(MessageHandler(
+        filters.Chat([ANON_GROUP_ID, FORWARD_GROUP_ID]) & 
+        filters.REPLY, 
+        handle_reply
+    ))
     
     logger.info("Бот запущен")
     application.run_polling()
