@@ -62,7 +62,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             
             await update.message.forward(FORWARD_GROUP_ID)
-            await update.message.reply_text("✅ Сообщение успешно опубликовано!")
+            await update.message.reply_text("✅ Сообщение успешно отправлено админам!")
 
         except TelegramError as e:
             logger.error(f"Ошибка Telegram: {e}")
