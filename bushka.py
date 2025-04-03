@@ -138,7 +138,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 ANON_GROUP_ID,
                 f"✉️ Анонимное сообщение:\n\n{update.message.text}",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔍 Открыть", url=ANON_GROUP_LINK)]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔍 Открыть", url=VIDEO_LINK)]])
             )
             response = "✅ Сообщение отправлено админам! (@kmpr0 если что)"
         else:
