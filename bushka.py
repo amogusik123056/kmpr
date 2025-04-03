@@ -91,7 +91,7 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Ошибка обработки геолокации: {e}")
         await update.message.reply_text(
-            "❌ Ошибка обработки геолокации. Пожалуйста, попробуйте еще раз.\n\n"
+            "все чотка\n\n"
             ,
             reply_markup=geo_keyboard
         )
