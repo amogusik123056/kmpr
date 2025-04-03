@@ -37,8 +37,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔒 <b>Конфиденциальность:</b>Никто не получит твою геопозицию (антиспам система)\n\n"
         f"📹 <a href='{VIDEO_LINK}'>Видеоинструкция</a>"
     )
-    
-    await update.message.reply_text(
+await update.message.reply_text(
         welcome_text,
         reply_markup=geo_keyboard,
         parse_mode='HTML',
